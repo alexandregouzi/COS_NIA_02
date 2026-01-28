@@ -30,19 +30,18 @@ for folder in [base_folder, cours_folder, users_folder]:
     if not os.path.exists(folder):
         os.makedirs(folder)
 
-# --- 1. SÉLECTION INTELLIGENTE DES FICHIERS (DANS ./DATA/COURS) ---
 def get_relevant_files(prompt, pdf_folder_path):
     """
-    Sélectionne les fichiers PDF dans le dossier 'cours' dont le nom correspond à la question.
+    Retourne : (liste_fichiers, est_une_recherche_globale)
     """
-    # On cherche uniquement dans le dossier des cours
     all_pdfs = glob.glob(os.path.join(pdf_folder_path, "*.pdf"))
     
+    # Cas 1 : Pas de question
     if not prompt:
-        return all_pdfs 
+        return all_pdfs, True 
 
-    # Nettoyage du prompt
-    mots_vides = ["le", "la", "les", "de", "du", "des", "un", "une", "est", "sont", "pour", "comment", "quoi", "quel", "quelle"]
+    # Nettoyage
+    mots_vides = ["le", "la", "les", "de", "du", "des", "un", "une", "est", "sont", "pour", "comment", "quoi", "quel", "quelle", "sur", "dans"]
     cleaned_prompt = re.sub(r'[^\w\s]', '', prompt.lower())
     keywords = [word for word in cleaned_prompt.split() if word not in mots_vides and len(word) > 2]
     
@@ -50,13 +49,16 @@ def get_relevant_files(prompt, pdf_folder_path):
     
     for pdf_path in all_pdfs:
         filename = os.path.basename(pdf_path).lower()
+        # On cherche si un mot clé est dans le nom
         if any(kw in filename for kw in keywords):
             selected_files.append(pdf_path)
             
+    # Cas 2 : Aucun mot clé trouvé dans les titres -> Fallback
     if not selected_files:
-        return all_pdfs
+        return all_pdfs, True # True signifie "J'ai tout renvoyé par défaut"
     
-    return list(set(selected_files))
+    # Cas 3 : On a trouvé des fichiers spécifiques
+    return list(set(selected_files)), False # False signifie "C'est une sélection précise"
 
 # --- 2. FONCTION RAG MODIFIÉE (Lit JSON dans ./DATA/USERS) ---
 def initialize_rag_chain_with_files(selected_files, json_folder_path):
@@ -153,25 +155,33 @@ if prompt := st.chat_input("Posez votre question..."):
         st.markdown(prompt)
     st.session_state.messages.append({"role": "user", "content": prompt})
 
+    # ... DANS LA ZONE DE CHAT ...
+
     # 2. SELECTION ET REPONSE
     with st.chat_message("assistant"):
-        # A. On cherche les fichiers pertinents dans le dossier COURS
-        relevant_files = get_relevant_files(prompt, cours_folder)
+        # A. On appelle la nouvelle version de la fonction (récupère 2 variables)
+        relevant_files, is_global_search = get_relevant_files(prompt, cours_folder)
         
-        # Feedback visuel
-        all_pdfs_count = len(glob.glob(os.path.join(cours_folder, "*.pdf")))
+        # Affichage du feedback utilisateur
         files_names = [os.path.basename(f) for f in relevant_files]
         
-        if len(files_names) < all_pdfs_count:
-            st.caption(f"📂 Sources ({len(files_names)}/{all_pdfs_count}) : {', '.join(files_names)}")
+        if is_global_search:
+            # Cas où aucun mot clé n'a matché
+            st.warning("⚠️ Aucun fichier spécifique identifié par le titre. Recherche élargie à tous les cours.")
+            with st.expander("Voir les détails (Debug)"):
+                st.write(f"Question analysée : {prompt}")
+                st.write(f"Fichiers disponibles : {files_names}")
         else:
-            st.caption("📂 Recherche globale sur tous les cours")
+            # Cas où le filtrage a fonctionné
+            st.success(f"🎯 Ciblage réussi : {len(files_names)} document(s) pertinent(s).")
+            st.caption(f"Sources : {', '.join(files_names)}")
 
-        # B. On initialise le RAG (Fichiers cours + Dossier users pour le JSON)
+        # B. On initialise le RAG
         if relevant_files:
-            with st.spinner("Analyse des documents sélectionnés..."):
-                # Note: on passe 'users_folder' pour qu'il trouve le JSON
+             # ... le reste de ton code d'initialisation reste identique ...
+            with st.spinner("Analyse des documents..."):
                 rag_chain = initialize_rag_chain_with_files(relevant_files, users_folder)
+                 
                 
                 if rag_chain:
                     response = rag_chain.invoke({"input": prompt})
