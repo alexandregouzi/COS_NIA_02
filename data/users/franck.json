@@ -1,0 +1,10 @@
+{
+    "utilisateur": {
+        "prenom": "Franck",
+        "niveau": "Expert",
+        "preferences_apprentissage": {
+            "ton": "Socratique (pose des questions)",
+            "contenu_prefere": "mixte"
+        }
+    }
+}

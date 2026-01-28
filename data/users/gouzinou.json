@@ -1,0 +1,10 @@
+{
+    "utilisateur": {
+        "prenom": "Gouzinou",
+        "niveau": "Débutant",
+        "preferences_apprentissage": {
+            "ton": "Pédagogique & Illustré",
+            "contenu_prefere": "mixte"
+        }
+    }
+}
